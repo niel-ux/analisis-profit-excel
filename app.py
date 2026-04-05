@@ -9,32 +9,48 @@ st.set_page_config(
 )
 
 # =============================
-# Minimal Liquid Glass Styling
+# Styling Bersih dan Modern
 # =============================
 st.markdown("""
 <style>
-html, body, [class*="css"]  {
+html, body, [class*="css"] {
     font-family: 'Segoe UI', sans-serif;
 }
 
 .block-container {
-    padding-top: 2rem;
-    padding-bottom: 2rem;
+    padding-top: 2.5rem;
+    padding-bottom: 2.5rem;
+    max-width: 1200px;
 }
 
-.glass {
-    background: rgba(255, 255, 255, 0.55);
-    backdrop-filter: blur(10px);
-    border-radius: 18px;
-    padding: 24px;
-    border: 1px solid rgba(255,255,255,0.4);
-    box-shadow: 0 4px 24px rgba(0,0,0,0.04);
+.section {
+    margin-top: 2.5rem;
+    margin-bottom: 2rem;
 }
 
 .section-title {
-    font-size: 18px;
+    font-size: 20px;
     font-weight: 600;
-    margin-bottom: 12px;
+    margin-bottom: 1rem;
+}
+
+.kpi-primary {
+    font-size: 26px;
+    font-weight: 600;
+}
+
+.kpi-secondary {
+    font-size: 18px;
+    font-weight: 500;
+    color: #555;
+}
+
+.insight-box {
+    padding: 18px;
+    border-radius: 12px;
+    background: #f8f9fb;
+    border: 1px solid #e6e8ec;
+    margin-bottom: 10px;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -43,13 +59,13 @@ html, body, [class*="css"]  {
 # Header
 # =============================
 st.title("Marketplace Profit Analyzer")
-st.caption("Dashboard analisis profitabilitas penjualan marketplace")
+st.caption("Analisis kinerja dan profitabilitas penjualan marketplace")
 
 # =============================
-# Sidebar Configuration
+# Sidebar
 # =============================
 with st.sidebar:
-    st.header("Pengaturan")
+    st.header("Konfigurasi")
 
     uploaded_file = st.file_uploader("Unggah file Excel", type=["xlsx"])
 
@@ -74,59 +90,86 @@ with st.sidebar:
 if uploaded_file:
 
     with st.spinner("Memproses data..."):
-        time.sleep(0.8)
+        time.sleep(0.6)
         df = pd.read_excel(uploaded_file)
         df.columns = df.columns.str.strip()
 
-    if "Total Revenue" not in df.columns or "Total settlement amount" not in df.columns:
-        st.error("Kolom 'Total Revenue' atau 'Total settlement amount' tidak ditemukan.")
-        st.stop()
+    required_cols = ["Total Revenue", "Total settlement amount"]
+    for col in required_cols:
+        if col not in df.columns:
+            st.error(f"Kolom '{col}' tidak ditemukan.")
+            st.stop()
 
     df["Estimated_Qty"] = df["Total Revenue"].apply(lambda x: 2 if x > qty_rule else 1)
 
     total_transactions = len(df)
     total_qty = df["Estimated_Qty"].sum()
+
     total_revenue_asli = df["Total Revenue"].sum()
-    total_settlement = df["Total settlement amount"].sum()
+    total_settlement_asli = df["Total settlement amount"].sum()
     total_fees = df["Total Fees"].sum() if "Total Fees" in df.columns else 0
 
-    total_revenue = override_value if use_override and override_value > 0 else total_revenue_asli
+    if use_override and override_value > 0:
+        ratio = total_settlement_asli / total_revenue_asli if total_revenue_asli != 0 else 0
+        total_revenue = override_value
+        total_settlement = total_revenue * ratio
+    else:
+        total_revenue = total_revenue_asli
+        total_settlement = total_settlement_asli
 
     total_modal = total_qty * hpp
     laba_bersih = total_settlement - total_modal
     margin = (laba_bersih / total_revenue) * 100 if total_revenue != 0 else 0
 
     # =============================
-    # KPI UTAMA
+    # KPI UTAMA (Lebih Dominan)
     # =============================
-    st.markdown("<div class='section-title'>Ringkasan Kinerja</div>", unsafe_allow_html=True)
+    st.markdown("<div class='section'>", unsafe_allow_html=True)
+    st.markdown("<div class='section-title'>Ringkasan Utama</div>", unsafe_allow_html=True)
 
     col1, col2, col3 = st.columns(3)
 
-    col1.metric("Total Revenue", f"Rp {total_revenue:,.0f}")
-    col2.metric("Laba Bersih", f"Rp {laba_bersih:,.0f}")
-    col3.metric("Margin", f"{margin:.2f}%")
+    col1.markdown(f"<div class='kpi-primary'>Rp {total_revenue:,.0f}</div>", unsafe_allow_html=True)
+    col1.caption("Total Revenue")
 
+    col2.markdown(f"<div class='kpi-primary'>Rp {laba_bersih:,.0f}</div>", unsafe_allow_html=True)
+    col2.caption("Laba Bersih")
+
+    col3.markdown(f"<div class='kpi-primary'>{margin:.2f}%</div>", unsafe_allow_html=True)
+    col3.caption("Margin")
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # =============================
     # KPI Pendukung
+    # =============================
+    st.markdown("<div class='section'>", unsafe_allow_html=True)
+    st.markdown("<div class='section-title'>Detail Operasional</div>", unsafe_allow_html=True)
+
     col4, col5, col6 = st.columns(3)
-    col4.metric("Total Produk Terjual", int(total_qty))
-    col5.metric("Total Biaya Marketplace", f"Rp {abs(total_fees):,.0f}")
-    col6.metric("Total Modal", f"Rp {total_modal:,.0f}")
 
-    st.markdown(" ")
+    col4.markdown(f"<div class='kpi-secondary'>{int(total_qty)}</div>", unsafe_allow_html=True)
+    col4.caption("Total Produk Terjual")
+
+    col5.markdown(f"<div class='kpi-secondary'>Rp {abs(total_fees):,.0f}</div>", unsafe_allow_html=True)
+    col5.caption("Total Biaya Marketplace")
+
+    col6.markdown(f"<div class='kpi-secondary'>Rp {total_modal:,.0f}</div>", unsafe_allow_html=True)
+    col6.caption("Total Modal")
+
+    st.markdown("</div>", unsafe_allow_html=True)
 
     # =============================
-    # Grafik dan Insight
+    # Grafik (Full Width Lebih Nyaman)
     # =============================
-    col_left, col_right = st.columns([2,1])
+    st.markdown("<div class='section'>", unsafe_allow_html=True)
+    st.markdown("<div class='section-title'>Grafik Omzet Harian</div>", unsafe_allow_html=True)
 
-    with col_left:
-        st.markdown("<div class='section-title'>Grafik Omzet Harian</div>", unsafe_allow_html=True)
+    if "Order created time" in df.columns:
+        df["Order created time"] = pd.to_datetime(df["Order created time"], errors="coerce")
+        df = df.dropna(subset=["Order created time"])
 
-        if "Order created time" in df.columns:
-            df["Order created time"] = pd.to_datetime(df["Order created time"], errors="coerce")
-            df = df.dropna(subset=["Order created time"])
-
+        if not df.empty:
             daily = df.groupby(df["Order created time"].dt.date)["Total Revenue"].sum().reset_index()
 
             fig = px.line(
@@ -135,54 +178,63 @@ if uploaded_file:
                 y="Total Revenue",
                 markers=True
             )
-            fig.update_layout(template="simple_white", margin=dict(l=10, r=10, t=30, b=10))
+            fig.update_layout(template="simple_white")
             st.plotly_chart(fig, use_container_width=True)
 
-    with col_right:
-        st.markdown("<div class='section-title'>Analisis Otomatis</div>", unsafe_allow_html=True)
-
-        insights = []
-
-        if margin < 20:
-            insights.append("Margin keuntungan berada pada tingkat rendah. Evaluasi harga atau efisiensi biaya diperlukan.")
-        elif margin > 40:
-            insights.append("Margin keuntungan berada pada tingkat sangat sehat dan menunjukkan profitabilitas kuat.")
-
-        if total_revenue > 0:
-            fee_ratio = abs(total_fees) / total_revenue * 100
-            if fee_ratio > 15:
-                insights.append("Proporsi biaya marketplace terhadap revenue tergolong tinggi dan perlu dioptimalkan.")
-
-        if total_qty > total_transactions * 1.3:
-            insights.append("Terdapat kecenderungan pembelian lebih dari satu produk per transaksi. Strategi bundling dapat dipertimbangkan.")
-
-        if laba_bersih < 0:
-            insights.append("Kondisi usaha saat ini mengalami kerugian. Evaluasi struktur harga dan biaya disarankan.")
-
-        if insights:
-            for item in insights:
-                st.write("- " + item)
-        else:
-            st.write("Kinerja usaha berada dalam kondisi stabil.")
-
-    st.markdown(" ")
+    st.markdown("</div>", unsafe_allow_html=True)
 
     # =============================
-    # Simulasi Harga
+    # Insight (Lebih Rapi Dibaca)
     # =============================
+    st.markdown("<div class='section'>", unsafe_allow_html=True)
+    st.markdown("<div class='section-title'>Analisis Otomatis</div>", unsafe_allow_html=True)
+
+    insights = []
+
+    if margin < 20:
+        insights.append("Margin keuntungan berada pada tingkat rendah dan memerlukan evaluasi.")
+    if laba_bersih < 0:
+        insights.append("Kinerja usaha menunjukkan kondisi kerugian.")
+    if total_revenue > 0:
+        fee_ratio = abs(total_fees) / total_revenue * 100
+        if fee_ratio > 15:
+            insights.append("Proporsi biaya marketplace terhadap revenue tergolong tinggi.")
+    if total_qty > total_transactions * 1.3:
+        insights.append("Terdapat kecenderungan pembelian lebih dari satu produk per transaksi.")
+
+    if insights:
+        for item in insights:
+            st.markdown(f"<div class='insight-box'>{item}</div>", unsafe_allow_html=True)
+    else:
+        st.markdown("<div class='insight-box'>Tidak ditemukan anomali signifikan pada kinerja usaha.</div>", unsafe_allow_html=True)
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # =============================
+    # Simulasi
+    # =============================
+    st.markdown("<div class='section'>", unsafe_allow_html=True)
     st.markdown("<div class='section-title'>Simulasi Kenaikan Harga</div>", unsafe_allow_html=True)
 
     if kenaikan > 0:
 
         tambahan_revenue = total_qty * kenaikan
         revenue_baru = total_revenue + tambahan_revenue
-        settlement_ratio = total_settlement / total_revenue_asli if total_revenue_asli != 0 else 0
+        settlement_ratio = total_settlement / total_revenue if total_revenue != 0 else 0
         settlement_baru = revenue_baru * settlement_ratio
 
         laba_baru = settlement_baru - total_modal
         margin_baru = (laba_baru / revenue_baru) * 100 if revenue_baru != 0 else 0
 
         colA, colB, colC = st.columns(3)
-        colA.metric("Revenue Baru", f"Rp {revenue_baru:,.0f}")
-        colB.metric("Laba Bersih Baru", f"Rp {laba_baru:,.0f}")
-        colC.metric("Margin Baru", f"{margin_baru:.2f}%")
+
+        colA.markdown(f"<div class='kpi-secondary'>Rp {revenue_baru:,.0f}</div>", unsafe_allow_html=True)
+        colA.caption("Revenue Baru")
+
+        colB.markdown(f"<div class='kpi-secondary'>Rp {laba_baru:,.0f}</div>", unsafe_allow_html=True)
+        colB.caption("Laba Bersih Baru")
+
+        colC.markdown(f"<div class='kpi-secondary'>{margin_baru:.2f}%</div>", unsafe_allow_html=True)
+        colC.caption("Margin Baru")
+
+    st.markdown("</div>", unsafe_allow_html=True)
